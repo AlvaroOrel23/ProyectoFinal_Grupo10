@@ -1,0 +1,119 @@
+package SistemaGestionFarmaPlus;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.io.*;
+
+public class AgregarClientes {
+    // Atributos del objeto Cliente
+    String DNI, Nombre, Apellidos, Nacimiento, Correo, Telefono, Direccion; 
+    
+    private static final String ARCHIVO_DB = "clientes.txt";
+    
+    // Constructor
+    public AgregarClientes(String DNI, String Nombre, String Apellidos, String Correo,
+            String Nacimiento, String Telefono, String Direccion) {
+        
+        this.DNI = DNI; 
+        this.Nombre = Nombre;
+        this.Apellidos = Apellidos; 
+        this.Nacimiento = Nacimiento;
+        this.Telefono = Telefono; 
+        this.Correo = Correo;
+        this.Direccion = Direccion;
+    }
+    
+    // Base de datos simulada (Diccionario)
+    // Hacemos esto static para que sea compartido por toda la app
+    static Map<String, AgregarClientes> registros = new HashMap<>();
+    
+    static {
+        cargarDatosDesdeTxt(); // Recuperamos los datos del pasado
+    }
+    
+    // Método para guardar
+    public static void IngresarRegistro() {
+        // 1. OBTENER DATOS DESDE EL OTRO MÓDULO
+        // Accedemos a ModuloRegistro.variable.getText()
+        String d = ModuloRegistro.txtDni.getText();
+        String n = ModuloRegistro.txtNombres.getText();
+        String a = ModuloRegistro.txtApellidos.getText();
+        // El DatePicker requiere getValue() y toString()
+        String f = (ModuloRegistro.dateFecha.getValue() != null) ? ModuloRegistro.dateFecha.getValue().toString() : "";
+        String t = ModuloRegistro.txtTelefono.getText();
+        String c = ModuloRegistro.txtCorreo.getText();
+        String dir = ModuloRegistro.txtDireccion.getText();
+        
+        // 2. CREAR EL OBJETO Y GURADAR EN 	MAPA (RAM)
+        AgregarClientes nuevoCliente = new AgregarClientes(d, n, a, f, t,c, dir);
+        registros.put(d, nuevoCliente);
+        
+        // 3. GUARDAR EN DISCO DURO (.txt)
+        guardarEnTxt(nuevoCliente);
+        
+        System.out.println("Guardado exitoso en RAM y Disco: " + n + " " + a);
+    }
+    
+ // --- NUEVO MÉTODO: Escribir en el archivo ---
+    private static void guardarEnTxt(AgregarClientes c) {
+        // Usamos try-with-resources para cerrar el archivo automáticamente
+        // 'true' en FileWriter significa "modo append" (no borra lo anterior, agrega al final)
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(ARCHIVO_DB, true))) {
+            // Formato: DNI|Nombre|Apellido|... (Usamos '|' como separador para evitar problemas con espacios)
+            String linea = c.DNI + "|" + c.Nombre + "|" + c.Apellidos + "|" + c.Correo + "|" +
+                           c.Nacimiento + "|" + c.Telefono + "|" + c.Direccion;
+            
+            writer.write(linea);
+            writer.newLine(); // Salto de línea para el siguiente cliente
+        } catch (IOException e) {
+            System.err.println("Error al guardar en archivo: " + e.getMessage());
+        }
+    }
+    
+    // --- NUEVO MÉTODO: Leer del archivo ---
+    private static void cargarDatosDesdeTxt() {
+        File archivo = new File(ARCHIVO_DB);
+        if (!archivo.exists()) return; // Si no existe el archivo, no hacemos nada
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(archivo))) {
+            String linea;
+            while ((linea = reader.readLine()) != null) {
+                // Separamos la línea por el palito '|'
+                // DNI|Nombre|Apellido...
+                String[] datos = linea.split("\\|");
+                
+                if (datos.length >= 6) { // Validamos que la línea esté completa
+                    AgregarClientes clienteRecuperado = new AgregarClientes(
+                        datos[0], // DNI
+                        datos[1], // Nombre
+                        datos[2], // Apellido
+                        datos[3], // Fecha
+                        datos[4], // Telefono
+                        datos[5], // Correo
+                        datos[6]  // Direccion
+                    );
+                    // Lo metemos al mapa para que el programa lo "recuerde"
+                    registros.put(datos[0], clienteRecuperado);
+                }
+            }
+            System.out.println("Base de datos cargada. Total clientes: " + registros.size());
+        } catch (IOException e) {
+            System.err.println("Error al leer base de datos: " + e.getMessage());
+        }
+    }
+    
+    // Buscar cliente
+    public static AgregarClientes buscarPorDNI(String dni) {
+     	return registros.get(dni);
+    }
+
+    
+    // 2. ¿Existe el cliente? (Para validaciones rápidas)
+    public static boolean existeCliente(String dni) {
+        return registros.containsKey(dni);
+    }
+
+    public static void main(String[] args) {
+    	       
+}
+}
