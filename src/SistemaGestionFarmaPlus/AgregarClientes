@@ -24,7 +24,7 @@ public class AgregarClientes {
     }
     
     // Base de datos simulada (Diccionario)
-    // Hacemos esto static para que sea compartido por toda la app
+    // Hacemos esto static para que pertenezca a la clase
     static Map<String, AgregarClientes> registros = new HashMap<>();
     
     static {
@@ -54,7 +54,7 @@ public class AgregarClientes {
         System.out.println("Guardado exitoso en RAM y Disco: " + n + " " + a);
     }
     
- // --- NUEVO MÉTODO: Escribir en el archivo ---
+ // --- METODO: Escribir en el archivo ---
     private static void guardarEnTxt(AgregarClientes c) {
         // Usamos try-with-resources para cerrar el archivo automáticamente
         // 'true' en FileWriter significa "modo append" (no borra lo anterior, agrega al final)
@@ -70,7 +70,7 @@ public class AgregarClientes {
         }
     }
     
-    // --- NUEVO MÉTODO: Leer del archivo ---
+    // --- NUEVO: Leer del archivo ---
     private static void cargarDatosDesdeTxt() {
         File archivo = new File(ARCHIVO_DB);
         if (!archivo.exists()) return; // Si no existe el archivo, no hacemos nada
