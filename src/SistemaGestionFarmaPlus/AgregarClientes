@@ -33,7 +33,7 @@ public class AgregarClientes {
     
     // Método para guardar
     public static void IngresarRegistro() {
-        // 1. OBTENER DATOS DESDE EL OTRO MÓDULO
+        // 1. OBTENER DATOS DESDE EL MÓDULO REGISTRO
         // Accedemos a ModuloRegistro.variable.getText()
         String d = ModuloRegistro.txtDni.getText();
         String n = ModuloRegistro.txtNombres.getText();
