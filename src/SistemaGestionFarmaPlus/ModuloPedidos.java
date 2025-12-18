@@ -1,5 +1,7 @@
 package SistemaGestionFarmaPlus;
 
+import java.util.HashMap;
+import java.util.Map;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -14,7 +16,16 @@ import javafx.stage.Stage;
 
 public class ModuloPedidos extends Application {
 
-    // Metodo Main para prueba independiente 
+    // Variables de interfaz
+    private static GridPane tablaProductos;
+    private static VBox contenidoCarrito;
+    private static Label lblTotalPagar;
+    private static TextField txtBuscar;
+
+    // Estructuras de datos
+    private static double totalPedidoActual = 0.0;
+    private static Map<Integer, ItemCarrito> mapaCarrito = new HashMap<>();
+
     public static void main(String[] args) {
         launch(args);
     }
@@ -22,23 +33,13 @@ public class ModuloPedidos extends Application {
     @Override
     public void start(Stage primaryStage) {
         Pane root = obtenerVista();
-        
         Scene scene = new Scene(root, 1100, 700);
         primaryStage.setTitle("Sistema FarmaPlus - Módulo de Pedidos");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
-    // Variables de interfaz
-    private static GridPane tablaProductos;
-    private static VBox contenidoCarrito;
-    private static Label lblTotalPagar;
-    private static TextField txtBuscar;
-    
-    // Variable local para el pedido actual
-    private static double totalPedidoActual = 0.0;
-
-  
+    // --- MÉTODOS DE APOYO UI ---
 
     private static Label crearEtiquetaEstado(String texto, Color colorFondo) {
         Label estado = new Label(texto);
@@ -66,7 +67,7 @@ public class ModuloPedidos extends Application {
         return l;
     }
 
-    // Vista Principal 
+    // --- VISTA PRINCIPAL ---
 
     public static Pane obtenerVista() {
         totalPedidoActual = 0.0;
@@ -125,28 +126,60 @@ public class ModuloPedidos extends Application {
         btnVaciar.setPrefWidth(Double.MAX_VALUE);
         btnVaciar.setStyle("-fx-background-color: #e0e0e0; -fx-text-fill: #333; -fx-font-weight: bold; -fx-padding: 10; -fx-background-radius: 5;");
 
-        // Acción Vaciar Carrito 
+        // Acción Vaciar Carrito
         btnVaciar.setOnAction(e -> {
             reiniciarCarrito();
             mostrarAlerta("Carrito Limpiado", "Se ha vaciado la lista visual.");
         });
 
-        // Acción Procesar (Conexión con InfoTienda)
+        // Acción Procesar
         btnProcesar.setOnAction(e -> {
-            if (totalPedidoActual > 0) {
-                // Actualizamos las variables en InfoTienda
-                InfoTienda.contadorVentas++;
-                InfoTienda.acumuladoTotalGeneral += totalPedidoActual;
-                
-                mostrarAlerta("Venta Exitosa", 
-                    "Venta #" + InfoTienda.contadorVentas + " registrada.\n" +
-                    "Monto: S/ " + String.format("%.2f", totalPedidoActual) + "\n\n" +
-                    "Acumulado del día: S/ " + String.format("%.2f", InfoTienda.acumuladoTotalGeneral)
-                );
-                reiniciarCarrito();
-            } else {
-                mostrarAlerta("Carrito Vacío", "Agrega productos antes de procesar.");
+            if (mapaCarrito.isEmpty()) {
+                mostrarAlerta("Carrito Vacío", "Agregue productos antes de procesar.");
+                return;
             }
+
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Finalizar Venta");
+            dialog.setHeaderText("Verificación de Cliente y Fidelización");
+            dialog.setContentText("Ingrese el DNI del cliente:");
+
+            dialog.showAndWait().ifPresent(dni -> {
+                if (dni.trim().isEmpty()) {
+                    mostrarAlerta("Error", "Debe ingresar un DNI válido para continuar.");
+                    return;
+                }
+
+                double porcentajeDesc = GestionDescuentos.calcularDescuentoPorHistorial(dni);
+                double montoDescuento = totalPedidoActual * porcentajeDesc;
+                double totalFinal = totalPedidoActual - montoDescuento;
+
+                String resumen = String.format(
+                        "Resumen de Venta\n"
+                        + "----------------------------\n"
+                        + "Cliente DNI: %s\n"
+                        + "Subtotal: S/ %.2f\n"
+                        + "Descuento (%d%%): S/ %.2f\n"
+                        + "----------------------------\n"
+                        + "TOTAL A PAGAR: S/ %.2f",
+                        dni, totalPedidoActual, (int) (porcentajeDesc * 100), montoDescuento, totalFinal);
+
+                Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
+                confirmacion.setTitle("Confirmar Transacción");
+                confirmacion.setHeaderText(null);
+                confirmacion.setContentText(resumen);
+
+                confirmacion.showAndWait().ifPresent(respuesta -> {
+                    if (respuesta == ButtonType.OK) {
+                        guardarVentaEnArchivo(dni, totalFinal);
+                        InfoTienda.contadorVentas++;
+                        InfoTienda.acumuladoTotalGeneral += totalFinal;
+
+                        reiniciarCarrito();
+                        mostrarAlerta("Venta Exitosa", "La venta ha sido registrada correctamente.");
+                    }
+                });
+            });
         });
 
         carrito.getChildren().addAll(lblCarrito, contenidoCarrito, hboxTotal, btnProcesar, btnVaciar);
@@ -166,21 +199,18 @@ public class ModuloPedidos extends Application {
         tablaProductos.setPadding(new Insets(10));
         tablaProductos.setStyle("-fx-border-color: #ccc; -fx-border-width: 1 0 0 0; -fx-padding: 15 0 0 0;");
 
-        llenarTabla(""); 
+        llenarTabla("");
 
         listaProductosCard.getChildren().add(tablaProductos);
         VBox.setVgrow(listaProductosCard, Priority.ALWAYS);
         zonaCentral.getChildren().add(listaProductosCard);
 
-        // Envolver en ScrollPane
         ScrollPane scrollPane = new ScrollPane(zonaCentral);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #f0f0f0;");
         scrollPane.setPadding(new Insets(0, 10, 0, 0));
-
         vistaPrincipal.setCenter(scrollPane);
 
-        // Listener de búsqueda
         txtBuscar.textProperty().addListener((observable, oldValue, newValue) -> {
             llenarTabla(newValue);
         });
@@ -189,17 +219,15 @@ public class ModuloPedidos extends Application {
     }
 
     private static void reiniciarCarrito() {
+        mapaCarrito.clear();
         totalPedidoActual = 0.0;
         lblTotalPagar.setText("S/ 0.00");
         contenidoCarrito.getChildren().clear();
         contenidoCarrito.getChildren().add(new Label("El carrito está vacío"));
     }
 
-    // Método para llenar la tabla leyendo de InfoTienda
     private static void llenarTabla(String filtro) {
         tablaProductos.getChildren().clear();
-
-        // Encabezados
         tablaProductos.add(crearHeaderColumna("Producto / Lab"), 0, 0);
         tablaProductos.add(crearHeaderColumna("Marca"), 1, 0);
         tablaProductos.add(crearHeaderColumna("Stock"), 2, 0);
@@ -209,32 +237,20 @@ public class ModuloPedidos extends Application {
         String texto = filtro.toLowerCase();
         int fila = 1;
 
-        // Lectura de datos desde InfoTienda
-        
-        // Producto 0
         if (filtro.isEmpty() || InfoTienda.producto0_nombre.toLowerCase().contains(texto)) {
-            agregarFila(0, InfoTienda.producto0_nombre, InfoTienda.producto0_laboratorio, 
-                       InfoTienda.producto0_marca, InfoTienda.producto0_stock, InfoTienda.producto0_precio, fila++);
+            agregarFila(0, InfoTienda.producto0_nombre, InfoTienda.producto0_laboratorio, InfoTienda.producto0_marca, InfoTienda.producto0_stock, InfoTienda.producto0_precio, fila++);
         }
-        // Producto 1
         if (filtro.isEmpty() || InfoTienda.producto1_nombre.toLowerCase().contains(texto)) {
-            agregarFila(1, InfoTienda.producto1_nombre, InfoTienda.producto1_laboratorio, 
-                       InfoTienda.producto1_marca, InfoTienda.producto1_stock, InfoTienda.producto1_precio, fila++);
+            agregarFila(1, InfoTienda.producto1_nombre, InfoTienda.producto1_laboratorio, InfoTienda.producto1_marca, InfoTienda.producto1_stock, InfoTienda.producto1_precio, fila++);
         }
-        // Producto 2
         if (filtro.isEmpty() || InfoTienda.producto2_nombre.toLowerCase().contains(texto)) {
-            agregarFila(2, InfoTienda.producto2_nombre, InfoTienda.producto2_laboratorio, 
-                       InfoTienda.producto2_marca, InfoTienda.producto2_stock, InfoTienda.producto2_precio, fila++);
+            agregarFila(2, InfoTienda.producto2_nombre, InfoTienda.producto2_laboratorio, InfoTienda.producto2_marca, InfoTienda.producto2_stock, InfoTienda.producto2_precio, fila++);
         }
-        // Producto 3
         if (filtro.isEmpty() || InfoTienda.producto3_nombre.toLowerCase().contains(texto)) {
-            agregarFila(3, InfoTienda.producto3_nombre, InfoTienda.producto3_laboratorio, 
-                       InfoTienda.producto3_marca, InfoTienda.producto3_stock, InfoTienda.producto3_precio, fila++);
+            agregarFila(3, InfoTienda.producto3_nombre, InfoTienda.producto3_laboratorio, InfoTienda.producto3_marca, InfoTienda.producto3_stock, InfoTienda.producto3_precio, fila++);
         }
-        // Producto 4
         if (filtro.isEmpty() || InfoTienda.producto4_nombre.toLowerCase().contains(texto)) {
-            agregarFila(4, InfoTienda.producto4_nombre, InfoTienda.producto4_laboratorio, 
-                       InfoTienda.producto4_marca, InfoTienda.producto4_stock, InfoTienda.producto4_precio, fila++);
+            agregarFila(4, InfoTienda.producto4_nombre, InfoTienda.producto4_laboratorio, InfoTienda.producto4_marca, InfoTienda.producto4_stock, InfoTienda.producto4_precio, fila++);
         }
 
         if (fila == 1) {
@@ -245,7 +261,6 @@ public class ModuloPedidos extends Application {
     }
 
     private static void agregarFila(int id, String nombre, String lab, String marca, int stock, double precio, int fila) {
-        // Columna 1
         VBox boxNombre = new VBox(2);
         Label lblNombre = new Label(nombre);
         lblNombre.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
@@ -255,16 +270,10 @@ public class ModuloPedidos extends Application {
         boxNombre.getChildren().addAll(lblNombre, lblLab);
         tablaProductos.add(boxNombre, 0, fila);
 
-        // Columna 2
         tablaProductos.add(new Label(marca), 1, fila);
-
-        // Columna 3
         tablaProductos.add(new Label(stock + " unid."), 2, fila);
-
-        // Columna 4
         tablaProductos.add(new Label("S/ " + String.format("%.2f", precio)), 3, fila);
 
-        // Columna 5
         String txtEstado;
         Color colorBg;
         boolean activo = true;
@@ -285,13 +294,11 @@ public class ModuloPedidos extends Application {
         }
         tablaProductos.add(crearEtiquetaEstado(txtEstado, colorBg), 4, fila);
 
-        // Botón Agregar
         Button btn = new Button(activo ? "Agregar" : "—");
         if (activo) {
             btn.setStyle("-fx-background-color: #1AA37A; -fx-text-fill: white; -fx-background-radius: 5; -fx-cursor: hand;");
             btn.setOnAction(e -> {
-                // MODIFICACIÓN DEL STOCK EN LA CLASE EXTERNA INFO TIENDA
-                switch(id) {
+                switch (id) {
                     case 0: InfoTienda.producto0_stock--; break;
                     case 1: InfoTienda.producto1_stock--; break;
                     case 2: InfoTienda.producto2_stock--; break;
@@ -299,20 +306,13 @@ public class ModuloPedidos extends Application {
                     case 4: InfoTienda.producto4_stock--; break;
                 }
 
-                if (totalPedidoActual == 0) contenidoCarrito.getChildren().clear();
-                
-                HBox itemCarro = new HBox(10);
-                itemCarro.getChildren().addAll(
-                    new Label("1x"),
-                    new Label(marca.length() > 10 ? marca.substring(0,10)+"..." : marca),
-                    new Label("S/ " + precio)
-                );
-                contenidoCarrito.getChildren().add(itemCarro);
+                if (mapaCarrito.containsKey(id)) {
+                    mapaCarrito.get(id).cantidad++;
+                } else {
+                    mapaCarrito.put(id, new ItemCarrito(id, nombre, precio));
+                }
 
-                totalPedidoActual += precio;
-                lblTotalPagar.setText("S/ " + String.format("%.2f", totalPedidoActual));
-
-                // Recargar tabla para reflejar el cambio de stock
+                actualizarVistaCarrito();
                 llenarTabla(txtBuscar.getText());
             });
         } else {
@@ -320,6 +320,48 @@ public class ModuloPedidos extends Application {
             btn.setDisable(true);
         }
         tablaProductos.add(btn, 5, fila);
+    }
+
+    private static void actualizarVistaCarrito() {
+        contenidoCarrito.getChildren().clear();
+        totalPedidoActual = 0.0;
+
+        for (ItemCarrito item : mapaCarrito.values()) {
+            double subtotalItem = item.precioUnitario * item.cantidad;
+            totalPedidoActual += subtotalItem;
+
+            HBox fila = new HBox(15);
+            fila.setAlignment(Pos.CENTER_LEFT);
+            Label lblCant = new Label(item.cantidad + "x");
+            lblCant.setStyle("-fx-font-weight: bold;");
+            Label lblNombre = new Label(item.nombre);
+            lblNombre.setPrefWidth(120);
+            Label lblPrecio = new Label("S/ " + String.format("%.2f", subtotalItem));
+
+            fila.getChildren().addAll(lblCant, lblNombre, lblPrecio);
+            contenidoCarrito.getChildren().add(fila);
+        }
+        lblTotalPagar.setText("S/ " + String.format("%.2f", totalPedidoActual));
+    }
+
+    private static void guardarVentaEnArchivo(String dni, double totalPagado) {
+        String nombreArchivo = "ventas.txt";
+        String fechaHora = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"));
+
+        StringBuilder detalleProductos = new StringBuilder();
+        for (ItemCarrito item : mapaCarrito.values()) {
+            detalleProductos.append(item.nombre).append(" (x").append(item.cantidad).append(") ");
+        }
+
+        try (java.io.FileWriter fw = new java.io.FileWriter(nombreArchivo, true); java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+            String lineaRegistro = String.format("%s | %s | %s | S/ %.2f", fechaHora, dni, detalleProductos.toString().trim(), totalPagado);
+            bw.write(lineaRegistro);
+            bw.newLine();
+        } catch (java.io.IOException ex) {
+            mostrarAlerta("Error de Persistencia", "No se pudo escribir en ventas.txt.");
+            ex.printStackTrace();
+        }
     }
 
     private static void mostrarAlerta(String titulo, String mensaje) {
