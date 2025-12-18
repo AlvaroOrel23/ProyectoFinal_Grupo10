@@ -1,0 +1,35 @@
+package SistemaGestionFarmaPlus;
+
+import java.io.*;
+import java.util.*;
+
+public class GestionDescuentos {
+
+	// Método para calcular el descuento basado en el historial del .txt
+    public static double calcularDescuentoPorHistorial(String dniBuscado) {
+        int contadorCompras = 0;
+        File archivo = new File("ventas.txt");
+        
+        if (!archivo.exists()) return 0.0;
+
+        try (Scanner lector = new Scanner(archivo)) {
+            while (lector.hasNextLine()) {
+                String linea = lector.nextLine();
+                String[] partes = linea.split(" \\| "); 
+                
+                if (partes.length > 1 && partes[1].trim().equals(dniBuscado.trim())) {
+                    contadorCompras++;
+                }
+            }
+        } catch (FileNotFoundException e) {
+            return 0.0;
+        }
+
+        // Regla: 0-2 compras (0%), 3-5 (5%), >5 (10%)
+        if (contadorCompras > 5) return 0.10;
+        if (contadorCompras >= 3) return 0.05;
+        return 0.0;
+    }
+}
+
+
