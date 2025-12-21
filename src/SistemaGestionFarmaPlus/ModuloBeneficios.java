@@ -21,7 +21,11 @@ public class ModuloBeneficios extends Application {
 	static Label lblNombre = new Label("Nombre del Cliente");
 	static Label lblDNI = new Label("DNI");
     
-    // VARIABLES PARA ACTUALIZACIÓN DINÁMICA
+    // VARIABLE PARA BARRA DE PROGRESO
+    private static ProgressBar barraPuntos;
+    private static Label lblMetaPuntos;
+    
+    // VARIABLES VISUALIZACIÓN DINÁMICA
     private static TableView<Compra> tablaHistorial;
     private static Label lblTotalVal, lblFechaVal, lblPuntosVal;
 
@@ -73,6 +77,10 @@ public class ModuloBeneficios extends Application {
                 lblNombre.setText("No registrado");
                 lblDNI.setText("");
                 tablaHistorial.setItems(FXCollections.observableArrayList());
+                
+                // Resetear barra si no se encuentra
+                barraPuntos.setProgress(0);
+                lblMetaPuntos.setText("0 / 100 pts");
             }
         });
         
@@ -90,8 +98,24 @@ public class ModuloBeneficios extends Application {
         fotoPerfil.setFitHeight(120);
         fotoPerfil.setFitWidth(120);
         fotoPerfil.setClip(new Circle(60, 60, 60));
-       
-        cardPerfil.getChildren().addAll(cajaBusqueda, fotoPerfil, lblNombre, lblDNI);
+        
+        // ---  CREACION DE BARRA PROGRESO ---
+        VBox boxProgreso = new VBox(5);
+        boxProgreso.setAlignment(Pos.CENTER);
+        
+        Label lblTituloNivel = new Label("Nivel de Beneficios");
+        lblTituloNivel.setStyle("-fx-font-size: 12px; -fx-text-fill: #757575;");
+        
+        barraPuntos = new ProgressBar(0);
+        barraPuntos.setPrefWidth(220);
+        barraPuntos.setStyle("-fx-accent: #4CAF50;"); 
+        
+        lblMetaPuntos = new Label("0 / 100 pts");
+        lblMetaPuntos.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #333333;");
+        
+        boxProgreso.getChildren().addAll(lblTituloNivel, barraPuntos, lblMetaPuntos);
+      
+        cardPerfil.getChildren().addAll(cajaBusqueda, fotoPerfil, lblNombre, lblDNI, boxProgreso);
         return cardPerfil;
     }
 
@@ -101,7 +125,7 @@ public class ModuloBeneficios extends Application {
 
         HBox kpiContainer = new HBox(20);
         
-        // Inicializamos las labels de los KPIs para poder editarlas luego
+        // Inicializamos las labels de los KPIs para  editarlas luego
         lblTotalVal = new Label("S/. 0.00");
         lblFechaVal = new Label("-");
         lblPuntosVal = new Label("0 pts");
@@ -138,20 +162,33 @@ public class ModuloBeneficios extends Application {
 
                     historial.add(new Compra(productos, fecha, "Ver detalle", "S/. " + totalStr, "Entregado"));
                     totalGastado += total;
-                    ultimaFecha = fecha.split(" ")[0]; // Solo fecha, sin hora
-                }
-            }
-        } catch (Exception e) {
+                    ultimaFecha = fecha.split(" ")[0];
+                     }
+                   }
+                } catch (Exception e) {
             System.out.println("Error al leer historial");
         }
 
         // Actualizar Tabla
         tablaHistorial.setItems(historial);
         
+        // Calcular Puntos
+        int puntosCalculados = (int)(totalGastado / 10); 
+
         // Actualizar KPIs
         lblTotalVal.setText(String.format("S/. %.2f", totalGastado));
         lblFechaVal.setText(ultimaFecha);
-        lblPuntosVal.setText((int)(totalGastado / 10) + " pts"); // 1 punto por cada 10 soles
+        lblPuntosVal.setText(puntosCalculados + " pts");
+        
+        // --- Actualizar Barra de Progreso ---
+        double meta = 100.0; 
+        double progreso = puntosCalculados / meta;
+        
+        if (progreso > 1.0) progreso = 1.0; 
+        
+        barraPuntos.setProgress(progreso);
+        lblMetaPuntos.setText(puntosCalculados + " / " + (int)meta + " pts");
+       
     }
 
     private static HBox crearTarjetaKPI(String titulo, Label lblValor, String colorBorde) {
@@ -190,9 +227,16 @@ public class ModuloBeneficios extends Application {
 
     // MODELO DE DATOS
     public static class Compra {
+    	
         private String producto, fecha, cantidad, total, estado;
+        
         public Compra(String p, String f, String c, String t, String e) {
-            this.producto = p; this.fecha = f; this.cantidad = c; this.total = t; this.estado = e;
+        	
+            this.producto = p; 
+            this.fecha = f; 
+            this.cantidad = c;
+            this.total = t; 
+            this.estado = e;
         }
         public String getProducto() { return producto; }
         public String getFecha() { return fecha; }
