@@ -2,6 +2,8 @@ package SistemaGestionFarmaPlus;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.io.File; 
+import java.util.Scanner; 
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -141,28 +143,46 @@ public class ModuloPedidos extends Application {
 
             TextInputDialog dialog = new TextInputDialog();
             dialog.setTitle("Finalizar Venta");
-            dialog.setHeaderText("Verificación de Cliente y Fidelización");
-            dialog.setContentText("Ingrese el DNI del cliente:");
+            dialog.setHeaderText("Verificación de Cliente");
+            dialog.setContentText("Ingrese el DNI del cliente para validar registro:");
 
-            dialog.showAndWait().ifPresent(dni -> {
-                if (dni.trim().isEmpty()) {
+            dialog.showAndWait().ifPresent(dniInput -> {
+                String dniProcesar = dniInput.trim();
+
+                if (dniProcesar.isEmpty()) {
                     mostrarAlerta("Error", "Debe ingresar un DNI válido para continuar.");
                     return;
                 }
 
-                double porcentajeDesc = GestionDescuentos.calcularDescuentoPorHistorial(dni);
+                // --- VALIDACIÓN CON EL ARCHIVO Clientes.txt ---
+                boolean registrado = validarClienteEnArchivo(dniProcesar);
+                
+                if (!registrado) {
+                    // Si no está en el archivo, forzamos el código de "No Registrado"
+                    mostrarAlerta("Cliente No Encontrado", 
+                        "El DNI " + dniProcesar + " no figura en Clientes.txt.\n" +
+                        "Se procesará como cliente genérico (999999).");
+                    dniProcesar = "999999";
+                }
+                
+            
+                double porcentajeDesc = dniProcesar.equals("999999") ? 0.0 : GestionDescuentos.calcularDescuentoPorHistorial(dniProcesar);
+               
                 double montoDescuento = totalPedidoActual * porcentajeDesc;
                 double totalFinal = totalPedidoActual - montoDescuento;
+
+                // Variable final para usar en el lambda
+                final String dniFinal = dniProcesar; 
 
                 String resumen = String.format(
                         "Resumen de Venta\n"
                         + "----------------------------\n"
-                        + "Cliente DNI: %s\n"
+                        + "Cliente: %s\n" // Mostramos DNI o 999999
                         + "Subtotal: S/ %.2f\n"
                         + "Descuento (%d%%): S/ %.2f\n"
                         + "----------------------------\n"
                         + "TOTAL A PAGAR: S/ %.2f",
-                        dni, totalPedidoActual, (int) (porcentajeDesc * 100), montoDescuento, totalFinal);
+                        dniFinal, totalPedidoActual, (int) (porcentajeDesc * 100), montoDescuento, totalFinal);
 
                 Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
                 confirmacion.setTitle("Confirmar Transacción");
@@ -171,7 +191,7 @@ public class ModuloPedidos extends Application {
 
                 confirmacion.showAndWait().ifPresent(respuesta -> {
                     if (respuesta == ButtonType.OK) {
-                        guardarVentaEnArchivo(dni, totalFinal);
+                        guardarVentaEnArchivo(dniFinal, totalFinal);
                         InfoTienda.contadorVentas++;
                         InfoTienda.acumuladoTotalGeneral += totalFinal;
 
@@ -362,6 +382,36 @@ public class ModuloPedidos extends Application {
             mostrarAlerta("Error de Persistencia", "No se pudo escribir en ventas.txt.");
             ex.printStackTrace();
         }
+    }
+
+    // --- VALIDACIÓN DE CLIENTE MODIFICADA ---
+    private static boolean validarClienteEnArchivo(String dni) {
+        File archivoClientes = new File("Clientes.txt");
+        if (!archivoClientes.exists()) {
+            // Si no existe el archivo, nadie está registrado.
+            return false; 
+        }
+
+        try (Scanner scanner = new Scanner(archivoClientes)) {
+            while (scanner.hasNextLine()) {
+                String linea = scanner.nextLine();
+                
+                // Basado en el ModuloRegistro, el DNI es el dato principal.
+                // Asumimos el formato: DNI | Nombre | Apellido... 
+                // o simplemente que el DNI está en la primera columna (índice 0)
+                String[] partes = linea.split("\\|");
+                
+                if (partes.length > 0) {
+                    String dniEnArchivo = partes[0].trim();
+                    if (dniEnArchivo.equals(dni)) {
+                        return true; // ¡DNI encontrado!
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     private static void mostrarAlerta(String titulo, String mensaje) {
