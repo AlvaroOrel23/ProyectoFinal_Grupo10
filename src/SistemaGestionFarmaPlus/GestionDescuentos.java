@@ -3,7 +3,7 @@ package SistemaGestionFarmaPlus;
 import java.io.*;
 import java.util.*;
 
-public class GestionDescuentos {
+public class GestionDescuento {
 
     // Método para calcular el descuento basado en Historial de Visitas Y Puntos Acumulados
 	
